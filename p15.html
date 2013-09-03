@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>第十五部分 测试诗歌 &mdash; Twisted 入门|Twisted Introduction</title>
+    
+    <link rel="stylesheet" href="_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/translations.js"></script>
+    <script type="text/javascript" src="_static/theme_extras.js"></script>
+    <link rel="top" title="Twisted 入门|Twisted Introduction" href="index.html" />
+    <link rel="next" title="第十六部分 Twisted 进程守护" href="p16.html" />
+    <link rel="prev" title="第十四部分 Deferred用于同步环境" href="p14.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="index.html">
+          <span>Twisted Introduction</span></a></h1>
+        <h2 class="heading"><span>第十五部分 测试诗歌</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="p14.html">第十四部分 Deferred用于同步环境</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="index.html">目录</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="p16.html">第十六部分 Twisted 进程守护</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="id1">
+<h1>第十五部分 测试诗歌<a class="headerlink" href="#id1" title="永久链接至标题">¶</a></h1>
+<p>你可以从&#8221;<a class="reference internal" href="p01.html"><em>第一部分 Twist理论基础</em></a>&#8220;开始阅读；也可以从&#8221;<a class="reference internal" href="index.html"><em>Twisted 入门!</em></a>&#8220;浏览索引.</p>
+<div class="section" id="id2">
+<h2>简介<a class="headerlink" href="#id2" title="永久链接至标题">¶</a></h2>
+<p>在我们探索Twisted的过程中写了很多代码,但目前我们却忽略了一些重要的东西 —— 测试.你也是会怀疑怎样用像 <a class="reference external" href="http://docs.python.org/library/unittest.html#module-unittest">unittest</a> 这样Python自带的同步框架测试异步代码.答案是你不能.正如我们已经发现的,同步代码和异步代码是不能混合的,至少不容易.</p>
+<p>幸运地是,Twisted包含自己的测试框架,叫 <a class="reference external" href="http://twistedmatrix.com/documents/current/core/howto/testing.html">trial</a>,它支持测试异步代码(当然你也可以用它测试同步代码).</p>
+<p>我们假设你已经熟悉了 <a class="reference external" href="http://docs.python.org/library/unittest.html#module-unittest">unittest</a> 的机理和相似的测试框架,它允许你通过定义类创建测试.这个类通常是一个父类(通常叫&#8221;<cite>TestCase</cite>&#8221;)的子类,类中的方法以&#8221;<cite>test</cite>&#8220;开头并被视作一个测试.框架负责发现所有的测试,一个接一个地运行它们,并伴有可选项 <tt class="docutils literal"><span class="pre">setUp</span></tt> 和 <tt class="docutils literal"><span class="pre">tearDown</span></tt> 步骤,之后报告结果.</p>
+</div>
+<div class="section" id="id4">
+<h2>例子<a class="headerlink" href="#id4" title="永久链接至标题">¶</a></h2>
+<p>你可以在 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/tests/test_poetry.py#L1">tests/test_poetry.py</a> 中找到一些关于测试的例子.为了确保我们所有的例子是自包含的(以便你不用担心PYTHONPAYH设置),我们将所有需要的代码拷贝到测试模块中.当然正常情况,你只需导入需要测试的模块.</p>
+<p>这个例子既测试诗歌客户端又测试服务器,通过使用客户端从测试服务器抓取一首诗. 为了提供一个可供测试的诗歌服务器, 我们在测试案例中实现 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/tests/test_poetry.py#L70">setUp</a> 方法:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">PoetryTestCase</span><span class="p">(</span><span class="n">TestCase</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">setUp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">factory</span> <span class="o">=</span> <span class="n">PoetryServerFactory</span><span class="p">(</span><span class="n">TEST_POEM</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">reactor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="n">reactor</span><span class="o">.</span><span class="n">listenTCP</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">factory</span><span class="p">,</span> <span class="n">interface</span><span class="o">=</span><span class="s">&quot;127.0.0.1&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">portnum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="o">.</span><span class="n">getHost</span><span class="p">()</span><span class="o">.</span><span class="n">port</span>
+</pre></div>
+</div>
+<p>这个 <cite>setUp</cite> 方法用一首测试诗建立诗歌服务器,然后监听一个随机开放端口.我们保存了端口号,以便实际测试需要时可以利用.当然测试结束时我们会用 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/tests/test_poetry.py#L76">tearDown</a> 清除测试服务器:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">tearDown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">port</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">port</span><span class="o">.</span><span class="n">stopListening</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>这把我们带到了第一个测试, <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/tests/test_poetry.py#L80">test_client</a>, 用 <cite>get_poetry</cite> 从测试服务器获取诗歌并且验证这就是我们所期望的诗歌:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">test_client</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The correct poem is returned by get_poetry.&quot;&quot;&quot;</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">get_poetry</span><span class="p">(</span><span class="s">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">portnum</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">got_poem</span><span class="p">(</span><span class="n">poem</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="n">poem</span><span class="p">,</span> <span class="n">TEST_POEM</span><span class="p">)</span>
+
+    <span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_poem</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">d</span>
+</pre></div>
+</div>
+<p>注意我们的测试函数返回一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>.在 <tt class="docutils literal"><span class="pre">trial</span></tt> 中,每个测试方法都以回调的方式运行.这意味着 <tt class="docutils literal"><span class="pre">reactor</span></tt> 正在运行并且我们可以以测试的一部分执行异步操作.我们仅仅需要让框架知道测试是异步的,这可以通过采用常规的Twisted方式 —— 返回 <tt class="docutils literal"><span class="pre">deferred</span></tt> 来实现.</p>
+<p><tt class="docutils literal"><span class="pre">trial</span></tt> 框架在调用 <tt class="docutils literal"><span class="pre">tearDown</span></tt> 方法之前将等待直到 <tt class="docutils literal"><span class="pre">deferred</span></tt> 激发,并且当 <tt class="docutils literal"><span class="pre">deferred</span></tt> 失败时将使测试失败(如,最后一个回调/错误回调对失败).如果我们的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 反应太慢(默认2分钟)它同样会使测试失败.这意味着如果测试完成,我们知道 <tt class="docutils literal"><span class="pre">deferred</span></tt> 激发了,因此我们的回调激发了并且运行了 <tt class="docutils literal"><span class="pre">assertEquals</span></tt> 测试方法.</p>
+<p>我们的第二个测试, <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/tests/test_poetry.py#L91">test_failure</a>, 证实 <cite>get_poetry</cite> 以适当的方式失败了,如果不能连接到服务器:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">test_failure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The correct failure is returned by get_poetry when</span>
+<span class="sd">    connecting to a port with no server.&quot;&quot;&quot;</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">get_poetry</span><span class="p">(</span><span class="s">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">assertFailure</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">ConnectionRefusedError</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>这里我们打算连接到一个无效端口,之后使用trial提供的 <tt class="docutils literal"><span class="pre">assertFailure</span></tt> 方法.这个方法类似于熟悉的 <tt class="docutils literal"><span class="pre">assertRaises</span></tt> 方法但是是针对异步代码的.它返回一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>,如果给定的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 失败则返回成功,否则返回失败.</p>
+<p>你可以用trial脚本自己运行这些测试,如下:</p>
+<div class="highlight-python"><pre>trial tests/test_poetry.py</pre>
+</div>
+<p>你将看到显示每个测试案例的输出,OK表示测试通过了.</p>
+</div>
+<div class="section" id="id5">
+<h2>讨论<a class="headerlink" href="#id5" title="永久链接至标题">¶</a></h2>
+<p>由于当谈到基本API时,trial与unittest十分相似,所以开始写测试十分容易.如果你的测试使用异步代码,仅仅返回 <tt class="docutils literal"><span class="pre">deferred</span></tt> 就可以了,trial将负责其余的事情.你也可以从 <tt class="docutils literal"><span class="pre">setUp</span></tt> 或 <tt class="docutils literal"><span class="pre">tearDown</span></tt> 方法返回一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>,如果它们也需要异步.</p>
+<p>任何来自测试的日志消息将被收集到当前文件夹下的一个文件中,即&#8221;<cite>_trial_temp</cite>&#8221;, trial会自动创建它. 除了打印到屏幕的错误,日志是调试失败测试的实用入口.</p>
+<p>图33显示了一个正在进行中的假想测试：</p>
+<div class="figure" id="id6">
+<img alt="_images/p15_test-1.png" src="_images/p15_test-1.png" />
+</div>
+<div class="line-block">
+<div class="line">图33: 进行中的trial测试</div>
+</div>
+<p>如果你之前使用过类似的框架,这是一个熟悉的模型,除了所有测试相关的方法可能返回 <tt class="docutils literal"><span class="pre">deferreds</span></tt>.</p>
+<p>trial框架是一个关于如何&#8221;异步运作&#8221;的很好例子,包括级联在整个程序中的变化.为了使一个测试(或任何函数,方法)是异步的,它必须:</p>
+<ol class="arabic simple">
+<li>非阻塞并且,通常</li>
+<li>返回一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>.</li>
+</ol>
+<p>但这意味着无论什么调用,那个函数必须愿意接收一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>,并且非阻塞(如此又好像返回了一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>).如此这般一层又一层.这样就呼唤出现trial一样的框架,可以处理返回 <tt class="docutils literal"><span class="pre">deferreds</span></tt> 的异步测试.</p>
+</div>
+<div class="section" id="id7">
+<h2>总结<a class="headerlink" href="#id7" title="永久链接至标题">¶</a></h2>
+<p>这就是关于单元测试的内容.如果你想了解更多关于如何为Twisted代码写单元测试的例子,你只需要看看Twisted代码本身.Twisted框架自带了一套非常庞大的单元测试,而且每个新的发布又会加入很多.由于这些测试在被接受入代码库之前,经过严格的代码评论以及Twisted专家们的仔细审查,故而它们是告诉你如何以正确方式测试Twisted代码的极好例子.</p>
+<p>在 <a class="reference internal" href="p16.html"><em>第十六部分 Twisted 进程守护</em></a> 中,我们将使用Twisted工具将诗歌服务器转化为一个真正的守护进程.</p>
+</div>
+<div class="section" id="id8">
+<h2>参考练习<a class="headerlink" href="#id8" title="永久链接至标题">¶</a></h2>
+<ol class="arabic simple">
+<li>改变测试之一使其失败,然后再次运行 <tt class="docutils literal"><span class="pre">trial</span></tt> 看看输出结果.</li>
+<li>阅读 <a class="reference external" href="http://twistedmatrix.com/documents/current/core/howto/testing.html">trial 在线文档</a>.</li>
+<li>为我们这个系列中所创建的其他诗歌服务写测试.</li>
+<li>探索Twisted中的 <a class="reference external" href="http://twistedmatrix.com/trac/browser/trunk/twisted/test">一些测试</a>.</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="p14.html">第十四部分 Deferred用于同步环境</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="index.html">目录</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="p16.html">第十六部分 Twisted 进程守护</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer">
+        &copy; 版权所有 2011, Cheng Luo.
+      最后更新日期是 Sep 04, 2013.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>

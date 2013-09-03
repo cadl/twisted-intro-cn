@@ -1,0 +1,271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>第十八部分 Deferreds 全貌 &mdash; Twisted 入门|Twisted Introduction</title>
+    
+    <link rel="stylesheet" href="_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/translations.js"></script>
+    <script type="text/javascript" src="_static/theme_extras.js"></script>
+    <link rel="top" title="Twisted 入门|Twisted Introduction" href="index.html" />
+    <link rel="next" title="第十九部分 改变之前的想法" href="p19.html" />
+    <link rel="prev" title="第十七部分 构造”回调”的另一种方法" href="p17.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="index.html">
+          <span>Twisted Introduction</span></a></h1>
+        <h2 class="heading"><span>第十八部分 Deferreds 全貌</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="p17.html">第十七部分 构造&#8221;回调&#8221;的另一种方法</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="index.html">目录</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="p19.html">第十九部分 改变之前的想法</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="deferreds">
+<h1>第十八部分 Deferreds 全貌<a class="headerlink" href="#deferreds" title="永久链接至标题">¶</a></h1>
+<p>你可以从 &#8220;<a class="reference internal" href="p01.html"><em>第一部分 Twist理论基础</em></a>&#8221; 开始阅读；也可以浏览 &#8220;<a class="reference internal" href="index.html"><em>Twisted 入门!</em></a>&#8221; 的索引</p>
+<div class="section" id="id1">
+<h2>简介<a class="headerlink" href="#id1" title="永久链接至标题">¶</a></h2>
+<p>在上一个部分,我们学习了使用生成器构造顺序异步回调的新方法.这样,包括 <tt class="docutils literal"><span class="pre">deferreds</span></tt>,我们现在有两种将异步操作链接在一起的方法.</p>
+<p>有时,然而,我们需要&#8221;并行&#8221;的运行一组异步操作.由于Twisted是单线程的,它实际并不会并发运行,但我们希望使用异步I/O在一组任务上尽可能快的工作.以我们的诗歌客户端为例,它从多个服务器同时下载诗歌,而不是一个接一个的方式.这就是使用Twisted下载诗歌的全部特点.</p>
+<p>作为一个结果,所有诗歌客户端需要解决一个问题:你怎样得知你启动的所有异步操作已经完成?目前我们通过将结果集总到一个列表(如客户端 7.0中的 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/twisted-client-7/get-poetry.py#L160">结果</a> 列表)并检查这个列表的长度来解决这个问题.除了收集成功的结果,我们还必须小心地对待失败,否则一个失败将使程序进入死循环,以为还有工作需要做.</p>
+<p>正如你所料,Twisted包含一个抽象层可以用来解决这个问题,我们来看一看.</p>
+</div>
+<div class="section" id="deferredlist">
+<h2>DeferredList<a class="headerlink" href="#deferredlist" title="永久链接至标题">¶</a></h2>
+<p><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 类使我们可以将一个 <tt class="docutils literal"><span class="pre">defered</span></tt> 对象列表视为一个 <tt class="docutils literal"><span class="pre">defered</span></tt> 对象.通过这种方法我们启动一族异步操作并且在它们全部完成后获得通知(无论它们成功或者失败).让我们看一些例子.</p>
+<p>在 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-1.py#L1">deferred-list/deferred-list-1.py</a> 中,可以找到如下代码:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">defer</span>
+
+<span class="k">def</span> <span class="nf">got_results</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&#39;We got:&#39;</span><span class="p">,</span> <span class="n">res</span>
+
+<span class="k">print</span> <span class="s">&#39;Empty List.&#39;</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">([])</span>
+<span class="k">print</span> <span class="s">&#39;Adding Callback.&#39;</span>
+<span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_results</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>如果运行它,将得到如下输出:</p>
+<div class="highlight-python"><pre>Empty List.
+Adding Callback.
+We got: []</pre>
+</div>
+<p>注意以下几点:</p>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 由Python列表创建.在这种情况下,列表是空的,但我们很快将看到列表元素必须是 <tt class="docutils literal"><span class="pre">Deferred</span></tt> 对象.</li>
+<li><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 本身是一个 <tt class="docutils literal"><span class="pre">deferred</span></tt> (它继承 <tt class="docutils literal"><span class="pre">Deferred</span></tt>).这意味着你可以像对待普通 <tt class="docutils literal"><span class="pre">deferred</span></tt> 一样向其添加回调和错误回调.</li>
+<li>在以上例子中,回调被添加时立即激发,所以 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 也必须立即激发.我们一会儿将讨论.</li>
+<li><tt class="docutils literal"><span class="pre">deferred</span></tt> 列表的结果本身也是一个列表(空).</li>
+</ul>
+<p>下面看一下 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-2.py#L1">deferred-list/deferred-list-2.py</a>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">defer</span>
+
+<span class="k">def</span> <span class="nf">got_results</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&#39;We got:&#39;</span><span class="p">,</span> <span class="n">res</span>
+
+<span class="k">print</span> <span class="s">&#39;One Deferred.&#39;</span>
+<span class="n">d1</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">([</span><span class="n">d1</span><span class="p">])</span>
+<span class="k">print</span> <span class="s">&#39;Adding Callback.&#39;</span>
+<span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_results</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d1.&#39;</span>
+<span class="n">d1</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d1 result&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>现在我们创建了包含一个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 元素的 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 列表,得到如下输出:</p>
+<div class="highlight-python"><pre>One Deferred.
+Adding Callback.
+Firing d1.
+We got: [(True, 'd1 result')]</pre>
+</div>
+<p>注意以下几点:</p>
+<ul class="simple">
+<li>这次 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 没有激发它的回调,直到我们激发列表中的 <tt class="docutils literal"><span class="pre">deferred</span></tt>.</li>
+<li>结果同样是一个列表,但这次包含一个元素.</li>
+<li>这个元素是一个元组,它的第二个值是列表中 <tt class="docutils literal"><span class="pre">deferred</span></tt> 的结果.</li>
+</ul>
+<p>让我们向列表添加两个 <tt class="docutils literal"><span class="pre">deferreds</span></tt> (<a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-1.py#L3">deferred-list/deferred-list-3.py</a>):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">defer</span>
+
+<span class="k">def</span> <span class="nf">got_results</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&#39;We got:&#39;</span><span class="p">,</span> <span class="n">res</span>
+
+<span class="k">print</span> <span class="s">&#39;Two Deferreds.&#39;</span>
+<span class="n">d1</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d2</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">([</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">])</span>
+<span class="k">print</span> <span class="s">&#39;Adding Callback.&#39;</span>
+<span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_results</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d1.&#39;</span>
+<span class="n">d1</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d1 result&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d2.&#39;</span>
+<span class="n">d2</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d2 result&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>得到如下输出:</p>
+<div class="highlight-python"><pre>Two Deferreds.
+Adding Callback.
+Firing d1.
+Firing d2.
+We got: [(True, 'd1 result'), (True, 'd2 result')]</pre>
+</div>
+<p>现在 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的结果非常清晰,至少以我们的使用方式,它是一个列表,元素个数与传入构造器的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 列表元素个数相同. 而且结果列表的元素包含原始的 <tt class="docutils literal"><span class="pre">deferreds</span></tt> 结果信息,至少当这些 <tt class="docutils literal"><span class="pre">deferred</span></tt> 成功返回.这意味着 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 本身并不激发直到所有的原始列表中的 <tt class="docutils literal"><span class="pre">deferreds</span></tt> 都被激发. 而且以一个空列表创建的 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 会立即激发,因为它不需要等待任何 <tt class="docutils literal"><span class="pre">deferreds</span></tt>.</p>
+<p>那么最终结果列表中的元素顺序如何? 考虑以下代码( <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-4.py#L1">deferred-list/deferred-list-4.py</a>):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">defer</span>
+
+<span class="k">def</span> <span class="nf">got_results</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&#39;We got:&#39;</span><span class="p">,</span> <span class="n">res</span>
+
+<span class="k">print</span> <span class="s">&#39;Two Deferreds.&#39;</span>
+<span class="n">d1</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d2</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">([</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">])</span>
+<span class="k">print</span> <span class="s">&#39;Adding Callback.&#39;</span>
+<span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_results</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d2.&#39;</span>
+<span class="n">d2</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d2 result&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d1.&#39;</span>
+<span class="n">d1</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d1 result&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>这里我们先激发 <cite>d2</cite> 然后再激发 <cite>d1</cite>,注意构造参数中的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 列表里 <cite>d1</cite>, <cite>d2</cite> 仍是原先的顺序.输出结果如下:</p>
+<div class="highlight-python"><pre>Two Deferreds.
+Adding Callback.
+Firing d2.
+Firing d1.
+We got: [(True, 'd1 result'), (True, 'd2 result')]</pre>
+</div>
+<p>输出列表中结果的顺序与原始 <tt class="docutils literal"><span class="pre">deferred</span></tt> 列表顺序相对应,而不是 <tt class="docutils literal"><span class="pre">deferred</span></tt> 碰巧被激发的顺序.这一点非常好,因为我们可以很容易地将每个结果与生成它的相应的操作联系在一起(如哪首诗来自哪个服务器).</p>
+<p>好了,那如果列表中一个或多个 <tt class="docutils literal"><span class="pre">deferreds</span></tt> 失败了怎么办呢? 上面结果中的 <cite>True</cite> 有什么用? 再看一个例子(<a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-5.py#L1">deferred-list/deferred-list-5.py</a>):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">twisted.internet</span> <span class="kn">import</span> <span class="n">defer</span>
+
+<span class="k">def</span> <span class="nf">got_results</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&#39;We got:&#39;</span><span class="p">,</span> <span class="n">res</span>
+
+<span class="n">d1</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d2</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">Deferred</span><span class="p">()</span>
+<span class="n">d</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">([</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">],</span> <span class="n">consumeErrors</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">d</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="n">got_results</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d1.&#39;</span>
+<span class="n">d1</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="s">&#39;d1 result&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;Firing d2 with errback.&#39;</span>
+<span class="n">d2</span><span class="o">.</span><span class="n">errback</span><span class="p">(</span><span class="ne">Exception</span><span class="p">(</span><span class="s">&#39;d2 failure&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>现在我们以正常结果激发 <cite>d1</cite>,以错误激发 <cite>d2</cite>.先暂时忽略 <tt class="docutils literal"><span class="pre">consumerErrors</span></tt> 选项,稍候介绍.这里是输出结果:</p>
+<div class="highlight-python"><pre>Firing d1.
+Firing d2 with errback.
+We got: [(True, 'd1 result'), (False, &lt;twisted.python.failure.Failure &lt;type 'exceptions.Exception'&gt;&gt;)]</pre>
+</div>
+<p>这次对应 <cite>d2</cite> 的元组在第二个位置出现了一个 <tt class="docutils literal"><span class="pre">Failure</span></tt>,并且第一个位置是 <tt class="docutils literal"><span class="pre">False</span></tt>.至此 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的工作原理非常清晰(但继续浏览以下讨论):</p>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 是以一个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 对象列表创建的.</li>
+<li><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 本身是一个 <tt class="docutils literal"><span class="pre">deferred</span></tt>,它返回的结果是一个列表,长度与 <tt class="docutils literal"><span class="pre">deferred</span></tt> 列表相同.</li>
+<li>当原始列表中所有 <tt class="docutils literal"><span class="pre">deferred</span></tt> 被激发后, <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 将会被激发.</li>
+<li>结果列表中的每个元素以相同顺序对应原始列表中相应的 <tt class="docutils literal"><span class="pre">deferred</span></tt>.如果那个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 成功返回,相应元素是(<cite>True</cite>,result),如果失败则为(<cite>False</cite>,failure).</li>
+<li><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 不会失败,因为无论每个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 的返回结果是什么都会被集总到结果列表中(同样,请看下面讨论).</li>
+</ul>
+<p>现在让我们讨论一下被传入 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的 <tt class="docutils literal"><span class="pre">consumeErrors</span></tt> 选项,如果我们运行以上相同代码而不传入此选项(<a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-6.py#L1">deferred-list/deferred-list-6.py</a>),则得到以下输出:</p>
+<div class="highlight-python"><pre>Firing d1.
+Firing d2 with errback.
+We got: [(True, 'd1 result'), (False, &gt;twisted.python.failure.Failure &gt;type 'exceptions.Exception'&lt;&lt;)]
+Unhandled error in Deferred:
+Traceback (most recent call last):
+Failure: exceptions.Exception: d2 failure</pre>
+</div>
+<p>如果你还记得,&#8221;Unhandled error in Deferred&#8221;消息是在 <tt class="docutils literal"><span class="pre">deferred</span></tt> 垃圾回收时被生成的,而且它表示最后一个回调失败了.这个消息告诉我们并没有完全捕获潜在的异步错误.在我们例子中,它是从哪里来的呢? 很明显不是来自 <tt class="docutils literal"><span class="pre">DeferredList</span></tt>,因为它已经成功返回了.所以它一定是来自 <cite>d2</cite>.</p>
+<p><tt class="docutils literal"><span class="pre">DeferredList</span></tt> 需要知道它所监视的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 何时激发. <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 以通常的方式向每个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 添加一个回调和错误回调. 默认地,这个回调(或错误)返回原始结果(或错误)在将它们放入最终结果列表之后.由于错误回调返回原始 <tt class="docutils literal"><span class="pre">failure</span></tt> 后将触发下一个错误回调, <cite>d2</cite> 在它被激发后仍然保持失败状态.</p>
+<p>但是如果我们将 <cite>consumeErrors=True</cite> 传递给 <tt class="docutils literal"><span class="pre">DeferredList</span></tt>, 它将向每个 <tt class="docutils literal"><span class="pre">deferred</span></tt> 添加返回 <cite>None</cite> 的错误回调, 即&#8221;消耗&#8221;掉这个错误并且取消警告信息. 我们同样可以向 <cite>d2</cite> 添加自己的错误回调来处理错误,如 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/deferred-list/deferred-list-7.py#L1">deferred-list/deferred-list-7.py</a>.</p>
+</div>
+<div class="section" id="id3">
+<h2>客户端 8.0<a class="headerlink" href="#id3" title="永久链接至标题">¶</a></h2>
+<p>获取诗歌客户端8.0发布啦！客户端使用 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 去发现所有诗歌何时完成(或失败).新版客户端位于 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/twisted-client-8/get-poetry.py#L1">twisted-client-8/get-poetry.py</a>. 同样,唯一的变化在于 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/twisted-client-8/get-poetry.py#L151">poetry_main</a>, 我们来看一下重要的变化:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="o">...</span>
+<span class="n">ds</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">for</span> <span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span> <span class="ow">in</span> <span class="n">addresses</span><span class="p">:</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">get_transformed_poem</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">addCallbacks</span><span class="p">(</span><span class="n">got_poem</span><span class="p">)</span>
+    <span class="n">ds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+<span class="n">dlist</span> <span class="o">=</span> <span class="n">defer</span><span class="o">.</span><span class="n">DeferredList</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">consumeErrors</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">dlist</span><span class="o">.</span><span class="n">addCallback</span><span class="p">(</span><span class="k">lambda</span> <span class="n">res</span> <span class="p">:</span> <span class="n">reactor</span><span class="o">.</span><span class="n">stop</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>你可以与 <a class="reference external" href="https://github.com/jdavisp3/twisted-intro/blob/master/twisted-client-7/get-poetry.py#L180">客户端 7.0</a> 中的相应部分比较.</p>
+<p>在客户端 8.0中,我们不需要 <cite>poem_done</cite> 回调和 <cite>results</cite> 列表.相反,我们把每个从 <cite>get_transformed_poem</cite> 返回的 <tt class="docutils literal"><span class="pre">deferred</span></tt> 放入 <cite>ds</cite> 列表,之后创建一个 <tt class="docutils literal"><span class="pre">DeferredList</span></tt>.由于 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 不会在所有诗歌完成或失败之前激发,我们仅仅向 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 添加一个回调以便关闭 <tt class="docutils literal"><span class="pre">reactor</span></tt>. 在我们这个情况中,没有使用 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 返回的结果,我们仅仅需要知道所有事情何时结束.仅此而已!</p>
+</div>
+<div class="section" id="id5">
+<h2>讨论<a class="headerlink" href="#id5" title="永久链接至标题">¶</a></h2>
+<p>可视化 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的工作方式:</p>
+<div class="figure" id="figure37">
+<img alt="_images/p18_deferred-list.png" src="_images/p18_deferred-list.png" />
+</div>
+<div class="line-block">
+<div class="line">图37: <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的结果</div>
+</div>
+<p>非常简单,真的. 还有一些关于 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的选项我们没有涉及,以及那些改变我们以上所描述行为的选项.我们在参考练习中把这些留给读者自己探索.</p>
+<p>在 <a class="reference internal" href="p19.html"><em>第十九部分 改变之前的想法</em></a> 中我们将进一步介绍 <tt class="docutils literal"><span class="pre">Deferred</span></tt> 类, 包括 Twisted 10.1.0 提出的最新特性.</p>
+</div>
+<div class="section" id="id6">
+<h2>参考练习<a class="headerlink" href="#id6" title="永久链接至标题">¶</a></h2>
+<ol class="arabic simple">
+<li>阅读 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的源代码.</li>
+<li>修改 <cite>deferred-list</cite> 中的例子去实现可选的构造器参数 <tt class="docutils literal"><span class="pre">fireOnOneCallback</span></tt> 和 <tt class="docutils literal"><span class="pre">fireOnOneErrback</span></tt>. 实现你将用其中一个(或两个都使用)的情景.</li>
+<li>你可以使用 <tt class="docutils literal"><span class="pre">DeferredLists</span></tt> 列表创建一个 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 吗? 如果是这样,结果将是什么?</li>
+<li>修改客户端8.0在所有诗歌完成下载前不打印任意信息. 这次你将使用 <tt class="docutils literal"><span class="pre">DeferredList</span></tt> 的结果.</li>
+<li>定义 <tt class="docutils literal"><span class="pre">DeferredDict</span></tt> 的句法并且实现它.</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="p17.html">第十七部分 构造&#8221;回调&#8221;的另一种方法</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="index.html">目录</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="p19.html">第十九部分 改变之前的想法</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer">
+        &copy; 版权所有 2011, Cheng Luo.
+      最后更新日期是 Sep 04, 2013.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>
